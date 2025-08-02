@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, User, Mail, Shield, Globe } from 'lucide-react';
-import { doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
@@ -140,12 +140,11 @@ export default function Profile({ onBack }: ProfileProps) {
       setSuccess('Role upgrade request sent to admin! You will be notified when it is reviewed.');
       setUpgradeReason(''); // Clear the form
 
-      // Send notification to admin about the role upgrade request
-      await sendNotificationToAdmin({
+      // Send notification to all admins about the role upgrade request
+      await sendNotificationToAdmins({
         type: 'role_upgrade_request',
         title: 'New Role Upgrade Request',
         message: `${userProfile?.name || 'User'} (${user.email}) has requested a role upgrade from ${currentUserRole} to ${requestedRole}`,
-        userId: 'admin', // Send to admin
         createdAt: new Date(),
       });
     } catch (error) {
@@ -154,14 +153,27 @@ export default function Profile({ onBack }: ProfileProps) {
     }
   };
 
-  const sendNotificationToAdmin = async (notification: any) => {
+  const sendNotificationToAdmins = async (notification: any) => {
     try {
-      await addDoc(collection(db, 'notifications'), {
-        ...notification,
-        read: false,
-      });
+      // Get all admin users
+      const adminUsersQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'admin')
+      );
+      const adminUsersSnapshot = await getDocs(adminUsersQuery);
+      
+      // Send notification to each admin
+      const notificationPromises = adminUsersSnapshot.docs.map(adminDoc => 
+        addDoc(collection(db, 'notifications'), {
+          ...notification,
+          userId: adminDoc.id,
+          read: false,
+        })
+      );
+      
+      await Promise.all(notificationPromises);
     } catch (error) {
-      console.error('Error sending notification to admin:', error);
+      console.error('Error sending notification to admins:', error);
     }
   };
 

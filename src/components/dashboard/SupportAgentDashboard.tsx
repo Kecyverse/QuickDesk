@@ -97,10 +97,22 @@ export default function SupportAgentDashboard({ onBack }: SupportAgentDashboardP
         status: 'in-progress',
       });
       
-      // Send email notification to ticket owner
+      // Send notification to ticket owner
       const ticket = tickets.find(t => t.id === ticketId);
       if (ticket) {
         try {
+          // Create in-app notification for ticket owner
+          await addDoc(collection(db, 'notifications'), {
+            userId: ticket.userId, // Notify the ticket owner
+            type: 'ticket_updated',
+            title: 'Ticket Assigned',
+            message: `Your ticket "${ticket.title}" has been assigned to a support agent`,
+            ticketId: ticketId,
+            createdAt: new Date(),
+            read: false,
+          });
+
+          // Send email notification
           await emailService.sendTicketStatusUpdateNotification({
             ticketId: ticketId,
             ticketTitle: ticket.title,
@@ -108,8 +120,8 @@ export default function SupportAgentDashboard({ onBack }: SupportAgentDashboardP
             userEmail: '', // You'd need to get this from user profile
             status: 'in-progress',
           });
-        } catch (emailError) {
-          console.error('Error sending email notification:', emailError);
+        } catch (notificationError) {
+          console.error('Error creating notification:', notificationError);
         }
       }
       
@@ -127,8 +139,20 @@ export default function SupportAgentDashboard({ onBack }: SupportAgentDashboardP
 
       // Send notification to ticket owner about status change
       const ticket = tickets.find(t => t.id === ticketId);
-      if (ticket && (newStatus === 'resolved' || newStatus === 'closed')) {
+      if (ticket) {
         try {
+          // Create in-app notification for ticket owner
+          await addDoc(collection(db, 'notifications'), {
+            userId: ticket.userId, // Notify the ticket owner
+            type: 'status_changed',
+            title: 'Ticket Status Updated',
+            message: `Your ticket "${ticket.title}" status has been updated to ${newStatus}`,
+            ticketId: ticketId,
+            createdAt: new Date(),
+            read: false,
+          });
+
+          // Send email notification
           await emailService.sendTicketStatusUpdateNotification({
             ticketId: ticketId,
             ticketTitle: ticket.title,
@@ -136,8 +160,8 @@ export default function SupportAgentDashboard({ onBack }: SupportAgentDashboardP
             userEmail: '', // You'd need to get this from user profile
             status: newStatus,
           });
-        } catch (emailError) {
-          console.error('Error sending email notification:', emailError);
+        } catch (notificationError) {
+          console.error('Error creating notification:', notificationError);
         }
       }
       

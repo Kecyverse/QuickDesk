@@ -113,6 +113,23 @@ export default function TicketDetail({ ticketId, onBack, userRole }: TicketDetai
         createdAt: new Date(),
       });
 
+      // Create in-app notification for ticket owner when support team replies
+      if ((userRole === 'support-agent' || userRole === 'admin') && ticket.userId !== user.uid) {
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            userId: ticket.userId, // Notify the ticket owner
+            type: 'reply_added',
+            title: 'New Reply to Your Ticket',
+            message: `${profile?.name || 'Support Team'} has replied to your ticket: "${ticket.title}"`,
+            ticketId: ticketId,
+            createdAt: new Date(),
+            read: false,
+          });
+        } catch (notificationError) {
+          console.error('Error creating notification:', notificationError);
+        }
+      }
+
       // Send email notification to ticket owner if reply is from support
       if (userRole === 'support-agent' || userRole === 'admin') {
         try {

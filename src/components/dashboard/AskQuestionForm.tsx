@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useForm } from 'react-hook-form';
@@ -79,17 +79,27 @@ export default function AskQuestionForm({ onBack }: AskQuestionFormProps) {
         // Don't fail the ticket creation if email fails
       }
 
-      // Send notification to support team
+      // Send notification to all support agents and admins
       try {
-        await addDoc(collection(db, 'notifications'), {
-          userId: 'support-team',
-          type: 'ticket_created',
-          title: 'New Ticket Created',
-          message: `New ticket "${data.title}" created by ${profile?.name}`,
-          ticketId: ticketRef.id,
-          createdAt: new Date(),
-          read: false,
-        });
+        const supportUsersQuery = query(
+          collection(db, 'users'),
+          where('role', 'in', ['support-agent', 'admin'])
+        );
+        const supportUsersSnapshot = await getDocs(supportUsersQuery);
+        
+        const notificationPromises = supportUsersSnapshot.docs.map(supportDoc => 
+          addDoc(collection(db, 'notifications'), {
+            userId: supportDoc.id,
+            type: 'ticket_created',
+            title: 'New Ticket Created',
+            message: `New ticket "${data.title}" created by ${profile?.name}`,
+            ticketId: ticketRef.id,
+            createdAt: new Date(),
+            read: false,
+          })
+        );
+        
+        await Promise.all(notificationPromises);
       } catch (notificationError) {
         console.error('Error sending notification:', notificationError);
       }
